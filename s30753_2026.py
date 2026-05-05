@@ -170,3 +170,90 @@ def validate_fasta_file(filepath: str) -> list:
                 errors.append(f"Line {i}: line too long ({len(line)} chars, max 80).")
 
     return errors
+
+# main() showcases the implemented functionalities. It gets user input, generates a DNA sequence,
+#add the user's name, saves the FASTA file, prints statistics of nucleotide occurrences and runs
+#provided extra features
+def main():
+
+    use_custom = input("Use custom nucleotide distribution? (y/n): ").strip().lower()
+    weights = None
+    if use_custom.lower() == 'y':
+        weights = get_nucleotide_weights()
+
+    length = validate_positive_int("Enter sequence length: ")
+
+    while True:
+        seq_id = input("Enter sequence ID: ").strip()
+        if not seq_id:
+            print("Error: ID cannot be empty.")
+        elif any(ch.isspace() for ch in seq_id):
+            print("Error: ID cannot contain whitespace.")
+        else:
+            break
+
+    description = input("Enter a description of the sequence (optional) or click Enter to skip: ").strip()
+
+    name = input("Enter your name: ").strip()
+
+    if weights:
+        sequence = generate_sequence_weighted(length, weights)
+    else:
+        sequence = generate_sequence(length)
+
+    sequence_with_name = insert_name(sequence, name)
+
+    filename = f"{seq_id}.fasta"
+    fasta_content = format_fasta(seq_id, description, sequence_with_name)
+    with open(filename, 'w') as f:
+        f.write(fasta_content)
+    print(f"\nSequence saved to {filename}")
+
+    statistics = calculate_stats(sequence_with_name)
+    print(f"\nSequence statistics (n={length}):")
+    for nuc in ['A', 'C', 'G', 'T']:
+        print(f"  {nuc}: {statistics[nuc]:.2f}%")
+    print(f"  GC-content: {statistics['GC']:.2f}%")
+
+    do_motif = input("\nSearch for a motif? (y/n): ").strip().lower()
+    if do_motif.lower() == 'y':
+        motif = input("Enter motif (e.g. ATG): ").strip()
+        positions = find_motif(sequence_with_name, motif)
+        if positions:
+            print(f"Motif '{motif.upper()}' found at positions: {positions}")
+        else:
+            print(f"Motif '{motif.upper()}' not found in sequence")
+
+    do_window = input("\nRun sliding window GC analysis? (y/n): ").strip().lower()
+    if do_window.lower() == 'y':
+        window_size = validate_positive_int("Enter window size (nt): ", min_val=1, max_val=length)
+        sw_results = sliding_window_gc(sequence_with_name, window_size)
+        csv_filename = f"{seq_id}_gc_window.csv"
+        save_sliding_window_csv(sw_results, csv_filename)
+        print(f"Sliding window GC results saved to: {csv_filename}")
+
+    do_batch = input("\nRun batch mode (generate multiple sequences)? (y/n): ").strip().lower()
+    if do_batch.lower() == 'y':
+        count = validate_positive_int("How many sequences to generate? ", min_val=1, max_val=100)
+        batch_id = input("Enter base ID for batch (e.g. Seq): ").strip()
+        batch_desc = input("Enter description for batch sequences: ").strip()
+        multi_fasta = batch_generate(length, count, batch_id, batch_desc)
+        batch_filename = f"{batch_id}_batch.fasta"
+        with open(batch_filename, 'w') as f:
+            f.write(multi_fasta)
+        print(f"Batch of {count} sequences saved to: {batch_filename}")
+
+    do_validate = input("\nValidate an existing FASTA file? (y/n): ").strip().lower()
+    if do_validate.lower() == 'y':
+        fasta_path = input("Enter path to FASTA file: ").strip()
+        errors = validate_fasta_file(fasta_path)
+        if not errors:
+            print("File has a valid FASTA format")
+        else:
+            print(f"Found {len(errors)} error(s):")
+            for err in errors:
+                print(f"  - {err}")
+
+
+if __name__ == "__main__":
+    main()
